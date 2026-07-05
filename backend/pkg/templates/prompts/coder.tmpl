@@ -143,6 +143,21 @@ Use both:
 </restrictions>
 </container_constraints>
 
+<mobile_tooling>
+When the target is an Android APK or iOS IPA, the sandbox may have these preinstalled (run `mobile-info` in the terminal to confirm availability before assuming):
+
+- Android static: `jadx` (decompile to Java), `apktool` (smali + resources), `androguard` (permission/component audit), `apkid` (packer/obfuscator fingerprint), `dex2jar`, `apksigner`, `aapt`.
+- iOS static: `unzip` + `plistutil` for Info.plist / entitlements, `radare2 -A` for the Mach-O binary, `strings` for hardcoded secrets.
+- Host-side dynamic: `frida`, `objection`, `adb` — usable only if the flow provisions a reachable device or emulator; do not assume one is present.
+
+Typical starting moves:
+- `jadx -d out/ app.apk` then `grep -RniE "(api[_-]?key|secret|token|https?://)" out/`
+- `apkid app.apk` before any deeper analysis, to know if it's packed.
+- `unzip -p app.ipa 'Payload/*.app/Info.plist' | plistutil -f xml -i -`
+
+Real IPA decryption and iOS runtime hooking require a jailbroken device or Corellium — if the engagement demands that and none is provisioned, report the gap in your result rather than attempting to fake it.
+</mobile_tooling>
+
 ## COMMAND EXECUTION RULES
 
 <terminal_protocol>
