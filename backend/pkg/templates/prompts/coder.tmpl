@@ -146,13 +146,21 @@ Use both:
 <mobile_tooling>
 When the target is an Android APK or iOS IPA, the sandbox may have these preinstalled (run `mobile-info` in the terminal to confirm availability before assuming):
 
+- **Pre-staged samples**: check `/samples/` first — the mobile-pentest image ships common CTF/testing binaries there. `ls /samples/` before assuming you need to download anything. If your target is not in `/samples/`, then acquire it.
 - Android static: `jadx` (decompile to Java), `apktool` (smali + resources), `androguard` (permission/component audit), `apkid` (packer/obfuscator fingerprint), `dex2jar`, `apksigner`, `aapt`.
 - iOS static: `unzip` + `plistutil` for Info.plist / entitlements, `radare2 -A` for the Mach-O binary, `strings` for hardcoded secrets.
 - Host-side dynamic: `frida`, `objection`, `adb` — usable only if the flow provisions a reachable device or emulator; do not assume one is present.
 
+Mandatory checks for every APK audit — DO NOT skip these:
+1. **Run `apkid <apk>` FIRST**, before any deeper analysis. Its output tells you about packers, obfuscators, anti-hooking, and anti-VM behaviours in a few seconds. Include the raw apkid output in the report.
+2. **Enumerate every WebView in the decompiled sources.** For each `WebView` reference, report whether `setJavaScriptEnabled(true)` is called and whether any user-controlled URL can reach `loadUrl`/`loadData`/`loadDataWithBaseURL`. Grep pattern: `grep -RniE "setJavaScriptEnabled|WebView|loadUrl" out/`.
+3. **Grep BOTH names AND values in `strings.xml`**. Attackers hide secrets under suspicious NAMES too — a resource `<string name="AWS_SECRET">` matters even if the value is empty (may be injected at build time). Pattern: `grep -REn "name=\"[A-Z_]*(SECRET|KEY|TOKEN|PASS|API)[A-Z_]*\"" out/res/`.
+4. **Check `network_security_config.xml`** for `cleartextTrafficPermitted="true"` and every explicitly permitted `<domain>`.
+5. **Check the AndroidManifest.xml** for `android:allowBackup` (defaults to true if unset — this is a real finding on targetSdk < 31), `android:debuggable`, and every `<activity>`, `<service>`, `<receiver>`, `<provider>` with `exported="true"`.
+
 Typical starting moves:
 - `jadx -d out/ app.apk` then `grep -RniE "(api[_-]?key|secret|token|https?://)" out/`
-- `apkid app.apk` before any deeper analysis, to know if it's packed.
+- `apkid app.apk` before any deeper analysis.
 - `unzip -p app.ipa 'Payload/*.app/Info.plist' | plistutil -f xml -i -`
 
 Real IPA decryption and iOS runtime hooking require a jailbroken device or Corellium — if the engagement demands that and none is provisioned, report the gap in your result rather than attempting to fake it.
